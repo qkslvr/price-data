@@ -1,0 +1,4 @@
+aiohttp>=3.9
+asyncpg>=0.29
+python-dotenv>=1.0
+web3>=6.0          # optional, for on-chain calls via library instead of raw RPC

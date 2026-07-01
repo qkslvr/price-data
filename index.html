@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Liquidity Edge</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#070910;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}
+.shell{display:grid;grid-template-rows:50px 46px 1fr;height:100vh}
+
+.topbar{display:flex;align-items:center;gap:10px;padding:0 20px;background:#0c0f1d;border-bottom:1px solid #1a1f3a}
+.pair-pill{padding:5px 16px;border-radius:20px;font-size:.78rem;font-weight:600;cursor:pointer;border:1px solid #262c52;color:#5b647e;background:none;transition:all .15s;letter-spacing:.05em}
+.pair-pill.active{background:#1d2550;color:#8b95f5;border-color:#4a52a8}
+.pair-pill:hover:not(.active){color:#94a3b8;border-color:#3a4170}
+.ts-chip{margin-left:auto;font-size:.68rem;color:#2f3850;letter-spacing:.08em}
+
+.controls{display:flex;align-items:center;gap:14px;padding:0 20px;background:#0a0d18;border-bottom:1px solid #161b30}
+.seg{display:inline-flex;border:1px solid #262c52;border-radius:8px;overflow:hidden;flex-shrink:0}
+.seg button{padding:6px 15px;background:none;border:none;color:#5b647e;font-size:.72rem;font-weight:700;letter-spacing:.07em;cursor:pointer;transition:all .12s}
+.seg button.on{background:#1d2550;color:#a5b0ff}
+.seg button:not(.on):hover{color:#94a3b8}
+.field{display:flex;align-items:center;gap:7px;flex-shrink:0}
+.field .tag{font-size:.58rem;font-weight:700;letter-spacing:.14em;color:#39425e;white-space:nowrap}
+select{background:#11152a;border:1px solid #262c52;color:#cbd5e1;padding:5px 26px 5px 10px;border-radius:7px;font-size:.74rem;cursor:pointer;outline:none;appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 3l3 3 3-3' stroke='%235b647e' stroke-width='1.4' fill='none'/></svg>");background-repeat:no-repeat;background-position:right 9px center}
+select:focus{border-color:#4a52a8}
+.switch{position:relative;display:inline-block;width:34px;height:18px;flex-shrink:0}
+.switch input{display:none}
+.switch .track{position:absolute;inset:0;background:#262c52;border-radius:10px;transition:.15s;cursor:pointer}
+.switch .track::before{content:'';position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#5b647e;transition:.15s}
+.switch input:checked + .track{background:#2d3a7a}
+.switch input:checked + .track::before{transform:translateX(16px);background:#a5b0ff}
+.mini-btn{background:#11152a;border:1px solid #262c52;color:#5b647e;font-size:.64rem;padding:5px 9px;border-radius:6px;cursor:pointer;letter-spacing:.06em;font-weight:700}
+.mini-btn:hover,.mini-btn.on{color:#a5b0ff;border-color:#4a52a8}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.chip{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:14px;font-size:.68rem;font-weight:500;cursor:pointer;border:1px solid #20264a;background:#0e1226;color:#94a3b8;transition:all .12s;user-select:none}
+.chip:hover{border-color:#3a4170}
+.chip.muted{opacity:.32;text-decoration:line-through}
+.chip-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+.corner{position:absolute;top:9px;left:14px;font-size:.6rem;font-weight:700;letter-spacing:.13em;color:#39425e;z-index:2;pointer-events:none}
+.corner em{color:#5b647e;font-style:normal}.corner b{color:#8b95f5;font-weight:700;font-style:normal}
+.panel{background:#070910;position:relative;overflow:hidden;min-height:0}
+
+#tlBody{display:grid;grid-template-rows:minmax(0,0.92fr) minmax(0,1.08fr);gap:1px;background:#161b30;height:100%}
+#tlTables{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:1px;background:#161b30;min-height:0}
+
+.share-strip{position:absolute;top:27px;left:14px;right:14px;height:22px;display:flex;gap:2px;border-radius:5px;overflow:hidden;z-index:3}
+.ss-seg{display:flex;align-items:center;justify-content:center;min-width:2px;font-size:.62rem;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.55);white-space:nowrap;overflow:hidden}
+.main-area{position:absolute;inset:57px 14px 10px 14px}
+
+.tbl-scroll{position:absolute;inset:30px 16px 9px 16px;overflow:auto}
+.share{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+.share thead th{font-size:.6rem;font-weight:700;letter-spacing:.05em;color:#525c75;padding:0 11px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid #1b2236}
+.share thead th:first-child{text-align:left}
+.share tbody td{padding:7px 11px;text-align:right;font-size:.74rem;font-weight:600;color:#828ca1;border-bottom:1px solid #121829;position:relative}
+.share tbody tr:last-child td{border-bottom:none}
+.share td.sz{text-align:left;color:#5b647e;font-weight:600;font-size:.72rem}
+.share td.zero{color:#2c3447}
+.share tbody tr:hover td{background:#0c1120}
+.share td .bar{position:absolute;top:50%;right:0;transform:translateY(-50%);height:60%;border-radius:3px;opacity:.20;pointer-events:none}
+.share td.win .bar{opacity:.42}
+.share td .val{position:relative;z-index:1}
+.share td.win{font-weight:800}
+.share tr.selrow td{background:rgba(217,119,87,.07)}
+.share tr.selrow:hover td{background:rgba(217,119,87,.1)}
+.share tr.selrow td.sz{box-shadow:inset 2px 0 0 #d97757;color:#e0a589;font-weight:700}
+.nodata{color:#39425e;font-size:.72rem;padding:8px}
+
+.pop{position:fixed;z-index:30;background:#0c0f1d;border:1px solid #2a3160;border-radius:10px;padding:14px 16px;box-shadow:0 12px 34px rgba(0,0,0,.55)}
+.pop h4{font-size:.6rem;letter-spacing:.13em;color:#5b647e;margin-bottom:11px;font-weight:700}
+.info-panel{top:44px;right:16px;width:370px}
+.info-panel ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+.info-panel li{font-size:.715rem;line-height:1.45;color:#94a3b8;padding-left:14px;position:relative}
+.info-panel li::before{content:'';position:absolute;left:0;top:6px;width:5px;height:5px;border-radius:50%;background:#4a52a8}
+.info-panel li b{color:#cdd6e6;font-weight:600}
+.fee-panel{top:96px;right:16px;width:286px}
+.fee-row{display:grid;grid-template-columns:1fr 58px auto;align-items:center;gap:8px;margin-bottom:8px}
+.fee-row .nm{display:flex;align-items:center;gap:6px;font-size:.74rem;color:#cbd5e1}
+.fee-row input{background:#11152a;border:1px solid #262c52;color:#cdd6e6;padding:4px 7px;border-radius:6px;font-size:.74rem;width:100%;text-align:right;outline:none}
+.fee-row input:focus{border-color:#4a52a8}.fee-row .unit{font-size:.62rem;color:#5b647e}
+.fee-note{font-size:.66rem;color:#5b647e;line-height:1.45;margin-top:6px;border-top:1px solid #1a1f3a;padding-top:9px}
+.info-btn{margin-left:14px;width:21px;height:21px;border-radius:50%;flex-shrink:0;border:1px solid #262c52;background:#11152a;color:#5b647e;font:italic 700 .72rem Georgia,serif;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.info-btn:hover{color:#a5b0ff;border-color:#4a52a8}
+.spin{border:2px solid #1a1f3a;border-top-color:#4a52a8;border-radius:50%;width:22px;height:22px;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="topbar" id="topbar"><div class="spin" style="width:15px;height:15px;border-width:1.5px"></div></div>
+
+  <div class="pop info-panel hidden" id="infoPanel">
+    <h4>DATA NOTES</h4>
+    <ul>
+      <li>Only fillable quotes shown — depth failures (<b>depth_ok=false / rate≤0</b>) excluded.</li>
+      <li>Taker fees are <b>configurable</b> (Include Fees toggle). DEX pool fees already in the quoted rate; CEX taker + KalqiX / Hyperliquid (7 bps) added on top.</li>
+      <li>cbBTC on Binance is a <b>BTCUSDC proxy</b> (no native cbBTC market).</li>
+      <li>KalqiX runs a <b>wide spread at small size</b> — real behavior, worst BUY venue for $10–100.</li>
+      <li>Lines are <b>smoothed</b> (moving average) to read as range bands; tooltip shows the smoothed bps gap.</li>
+    </ul>
+  </div>
+
+  <div class="pop fee-panel hidden" id="feePanel">
+    <h4>TAKER FEES · BPS PER TRADE</h4>
+    <div id="feeRows"></div>
+    <div class="fee-note">Applied only when <b>Include Fees</b> is on. SELL subtracts from proceeds; BUY adds to cost. DEX defaults 0 (pool fee already in the quoted rate).</div>
+  </div>
+
+  <div class="controls" id="controls" style="visibility:hidden">
+    <div class="seg" id="dirSeg"><button data-dir="SELL" class="on">SELL</button><button data-dir="BUY">BUY</button></div>
+    <div class="field"><span class="tag">BENCHMARK</span><select id="benchSel"></select></div>
+    <div class="field"><span class="tag">SIZE</span><div class="seg" id="sizeSeg"></div></div>
+    <div class="seg" id="rangeSeg"><button data-range="all" class="on">ALL</button><button data-range="24">24H</button><button data-range="2">2H</button></div>
+    <div class="field"><label class="switch"><input type="checkbox" id="feeToggle"><span class="track"></span></label><span class="tag">FEES</span><button class="mini-btn" id="feeEdit">EDIT</button></div>
+    <div class="chips" id="chips"></div>
+  </div>
+
+  <div class="body" id="tlBody">
+    <div class="panel" id="tlMain">
+      <div class="corner">GAP vs <em id="tlBench">BEST</em> OVER TIME · BPS · <em id="tlSel">—</em><span id="tlFeeFlag"></span></div>
+      <div class="share-strip" id="shareStrip"></div>
+      <div class="main-area"><canvas id="tlMainChart"></canvas></div>
+    </div>
+    <div id="tlTables">
+      <div class="panel"><div class="corner" id="cA">—</div><div class="tbl-scroll" id="tA"></div></div>
+      <div class="panel"><div class="corner" id="cB">—</div><div class="tbl-scroll" id="tB"></div></div>
+      <div class="panel"><div class="corner" id="cC">—</div><div class="tbl-scroll" id="tC"></div></div>
+      <div class="panel"><div class="corner" id="cD">—</div><div class="tbl-scroll" id="tD"></div></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API=(window.API_BASE||'')+'/api';
+const VENUE_COLORS={bebop:'#f59e0b',binance:'#eab308',hyperliquid:'#06b6d4',kalqix:'#84cc16',kyberswap:'#6366f1',pancakeswap:'#a855f7',uniswap:'#f97316',uniswap_v3:'#f97316',paraswap:'#2dd4bf'};
+const FALLBACK=['#3b82f6','#ef4444','#10b981','#ec4899','#8b5cf6'];
+const ALLOWED=['binance','hyperliquid','kalqix','kyberswap','uniswap','pancakeswap','paraswap'];
+const DEFAULT_FEES={binance:10,hyperliquid:7,kalqix:7,kyberswap:0,uniswap:0,pancakeswap:0,paraswap:0};
+
+const S={pair:null,data:null,dir:'SELL',bench:'BEST',muted:new Set(),size:null,venues:[],
+  range:'all',ts:null,tsCache:{},pairs:[],includeFees:false,fees:{...DEFAULT_FEES}};
+let mainChart=null;
+
+Chart.defaults.color='#475569';
+Chart.defaults.font.family='-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
+Chart.defaults.font.size=11;
+const vColor=(v,i=0)=>VENUE_COLORS[v]||FALLBACK[i%FALLBACK.length];
+function hexRgb(h){h=h.replace('#','');return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
+const hexA=(h,a)=>{const[r,g,b]=hexRgb(h);return`rgba(${r},${g},${b},${a})`;};
+async function apiFetch(p){const r=await fetch(API+p);if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}
+
+function feeOf(v){return S.includeFees?(+S.fees[v]||0):0;}
+function eff(v,rate){if(rate==null)return null;const f=feeOf(v)/1e4;return S.dir==='SELL'?rate*(1-f):rate*(1+f);}
+
+function readURL(){const q=new URLSearchParams(location.search);
+  return {pair:q.get('pair'),dir:q.get('dir'),bench:q.get('bench'),size:q.get('size'),range:q.get('range'),fees:q.get('fees')};}
+function writeURL(){const q=new URLSearchParams();
+  q.set('pair',S.pair);q.set('dir',S.dir);q.set('bench',S.bench);if(S.size!=null)q.set('size',S.size);
+  q.set('range',S.range);if(S.includeFees)q.set('fees','1');
+  history.replaceState(null,'','?'+q.toString());}
+
+async function init(){
+  const pairs=await apiFetch('/pairs');S.pairs=pairs;
+  const tb=document.getElementById('topbar');tb.innerHTML='';
+  pairs.forEach(p=>{const b=document.createElement('button');b.className='pair-pill';b.dataset.pair=p;
+    b.textContent=p.replace('_','/');b.onclick=()=>loadPair(p);tb.appendChild(b);});
+  const ts=document.createElement('span');ts.className='ts-chip';ts.id='tsChip';tb.appendChild(ts);
+  const info=document.createElement('button');info.className='info-btn';info.textContent='i';info.title='Data notes';
+  info.onclick=()=>document.getElementById('infoPanel').classList.toggle('hidden');tb.appendChild(info);
+  buildFeeRows();wireControls();
+  const u=readURL();
+  if(u.dir==='BUY'||u.dir==='SELL')S.dir=u.dir;
+  if(u.range)S.range=u.range;
+  if(u.fees==='1'){S.includeFees=true;document.getElementById('feeToggle').checked=true;}
+  syncSegs();
+  const start=(u.pair&&pairs.includes(u.pair))?u.pair:pairs[0];
+  if(pairs.length)loadPair(start,u);
+}
+
+async function loadPair(pair,urlState){
+  S.pair=pair;
+  document.querySelectorAll('.pair-pill').forEach(b=>b.classList.toggle('active',b.dataset.pair===pair));
+  document.getElementById('controls').style.visibility='hidden';syncSegs();
+  const d=await apiFetch('/liquidity/'+pair);S.data=d.data;
+  const raw=(d.all_venues&&d.all_venues.length?d.all_venues:[...new Set([...Object.keys(d.data.SELL||{}),...Object.keys(d.data.BUY||{})])]);
+  S.venues=raw.filter(v=>ALLOWED.includes(v)).sort();S.muted.clear();
+  document.getElementById('tsChip').textContent=d.fetched_at?'latest '+new Date(d.fetched_at).toUTCString().replace(' GMT','Z'):'';
+  resetSize();
+  if(urlState){if(urlState.bench&&(urlState.bench==='BEST'||S.venues.includes(urlState.bench)))S.bench=urlState.bench;
+    const sizes=sizesFor(S.dir);if(urlState.size!=null&&sizes.includes(+urlState.size))S.size=+urlState.size;}
+  buildChips();buildBenchSelect();buildSizeSeg();
+  document.getElementById('controls').style.visibility='visible';
+  await render();
+}
+
+function syncSegs(){
+  document.querySelectorAll('#dirSeg button').forEach(b=>b.classList.toggle('on',b.dataset.dir===S.dir));
+  document.querySelectorAll('#rangeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.range===S.range));
+}
+function wireControls(){
+  document.getElementById('dirSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+    S.dir=b.dataset.dir;syncSegs();resetSize();buildSizeSeg();render();});
+  document.getElementById('benchSel').addEventListener('change',e=>{S.bench=e.target.value;render();});
+  document.getElementById('sizeSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+    S.size=+b.dataset.size;document.querySelectorAll('#sizeSeg button').forEach(x=>x.classList.toggle('on',+x.dataset.size===S.size));render();});
+  document.getElementById('rangeSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+    S.range=b.dataset.range;syncSegs();render();});
+  document.getElementById('feeToggle').addEventListener('change',e=>{S.includeFees=e.target.checked;render();});
+  document.getElementById('feeEdit').addEventListener('click',()=>{const p=document.getElementById('feePanel');
+    p.classList.toggle('hidden');document.getElementById('feeEdit').classList.toggle('on',!p.classList.contains('hidden'));});
+}
+function buildFeeRows(){const el=document.getElementById('feeRows');el.innerHTML='';
+  ALLOWED.forEach(v=>{const row=document.createElement('div');row.className='fee-row';
+    row.innerHTML=`<span class="nm"><span class="chip-dot" style="background:${vColor(v)}"></span>${v}</span><input type="number" step="0.5" min="0" value="${S.fees[v]}" data-v="${v}"><span class="unit">bps</span>`;
+    el.appendChild(row);});
+  el.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',e=>{S.fees[e.target.dataset.v]=+e.target.value;if(S.includeFees)render();}));}
+function buildChips(){const el=document.getElementById('chips');el.innerHTML='';
+  S.venues.forEach((v,i)=>{const c=document.createElement('div');c.className='chip';
+    c.innerHTML=`<span class="chip-dot" style="background:${vColor(v,i)}"></span>${v}`;
+    c.onclick=()=>{if(S.muted.has(v))S.muted.delete(v);else S.muted.add(v);c.classList.toggle('muted',S.muted.has(v));
+      if(S.bench===v&&S.muted.has(v)){S.bench='BEST';buildBenchSelect();}render();};el.appendChild(c);});}
+function buildBenchSelect(){const sel=document.getElementById('benchSel');const cur=S.bench;sel.innerHTML='';
+  sel.add(new Option('Best','BEST'));S.venues.filter(v=>!S.muted.has(v)).forEach(v=>sel.add(new Option(v,v)));
+  sel.value=[...sel.options].some(o=>o.value===cur)?cur:'BEST';S.bench=sel.value;}
+function buildSizeSeg(){const el=document.getElementById('sizeSeg');el.innerHTML='';
+  sizesFor(S.dir).forEach(s=>{const b=document.createElement('button');b.dataset.size=s;b.textContent=sizeLabel(s,S.dir);
+    b.classList.toggle('on',s===S.size);el.appendChild(b);});}
+
+function activeVenues(){return S.venues.filter(v=>!S.muted.has(v));}
+function sizesFor(dir){const dd=S.data[dir]||{};const set=new Set();Object.values(dd).forEach(a=>a.forEach(p=>set.add(p.size)));return[...set].sort((a,b)=>a-b);}
+function resetSize(){const s=sizesFor(S.dir);S.size=s.length?s[s.length-1]:null;}
+function gapBps(rate,bench,dir){if(rate==null||bench==null)return null;return dir==='SELL'?(rate-bench)/bench*1e4:(bench-rate)/bench*1e4;}
+const sizeLabel=(s,dir)=>dir==='SELL'?String(s):'$'+s;
+function fmtT(ms){const d=new Date(ms);const mon=d.toLocaleString('en',{month:'short',timeZone:'UTC'});
+  return`${mon} ${d.getUTCDate()} ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`;}
+async function ensureTS(){const key=`${S.pair}|${S.dir}|${S.size}`;if(S.tsCache[key]){S.ts=S.tsCache[key];return;}
+  S.ts=null;const d=await apiFetch(`/timeseries/${S.pair}?direction=${S.dir}&size=${S.size}`);S.tsCache[key]=d;S.ts=d;}
+function rangeStart(t){if(S.range==='all')return 0;const cutoff=t[t.length-1]-(+S.range)*3600*1000;let i=0;while(i<t.length&&t[i]<cutoff)i++;return i;}
+
+// centered moving average (skips nulls)
+function movavg(ys,W){const h=(W-1)/2,out=new Array(ys.length).fill(null);
+  for(let i=0;i<ys.length;i++){let s=0,n=0;for(let j=i-h;j<=i+h;j++){if(j<0||j>=ys.length)continue;const y=ys[j];if(y==null)continue;s+=y;n++;}out[i]=n?s/n:null;}
+  return out;}
+
+// ── render ───────────────────────────────────────────────────────────────
+async function render(){
+  writeURL();
+  document.getElementById('tlBench').textContent=S.bench==='BEST'?'BEST':S.bench.toUpperCase();
+  document.getElementById('tlSel').textContent=(S.pair?S.pair.replace('_','/'):'—')+' · '+S.dir+' · '+(S.size==null?'—':sizeLabel(S.size,S.dir));
+  document.getElementById('tlFeeFlag').innerHTML=S.includeFees?' &nbsp;·&nbsp; <b>NET OF FEES</b>':'';
+  renderTables();
+  await ensureTS();
+  if(!S.ts)return;
+  const {t,rates}=S.ts;
+  const i0=rangeStart(t);
+  const venues=activeVenues().filter(v=>rates[v]);
+  const idx=[];for(let i=i0;i<t.length;i++)idx.push(i);
+
+  const benchR=new Array(t.length).fill(null);
+  const winCount={};venues.forEach(v=>winCount[v]=0);let winTot=0;
+  for(const i of idx){
+    let best=null,bestRateV=null;
+    venues.forEach(v=>{const r=eff(v,rates[v][i]);if(r==null)return;
+      const better=S.dir==='SELL'?(bestRateV==null||r>bestRateV):(bestRateV==null||r<bestRateV);
+      if(better){best=v;bestRateV=r;}});
+    if(best){winCount[best]++;winTot++;}
+    benchR[i]=S.bench==='BEST'?bestRateV:eff(S.bench,rates[S.bench]?rates[S.bench][i]:null);
+  }
+  renderShareStrip(winCount,winTot);
+  drawArea(idx,benchR,t,rates,venues);
+}
+
+function renderShareStrip(winCount,total){
+  const el=document.getElementById('shareStrip');
+  const parts=activeVenues().map(v=>({v,pct:total?(winCount[v]||0)/total*100:0})).filter(p=>p.pct>0).sort((a,b)=>b.pct-a.pct);
+  el.innerHTML=parts.map(p=>`<div class="ss-seg" title="${p.v} ${p.pct.toFixed(1)}%" style="flex-grow:${p.pct};background:${vColor(p.v,S.venues.indexOf(p.v))}"><span>${p.pct>=7?p.v+' '+p.pct.toFixed(0)+'%':''}</span></div>`).join('');
+}
+
+// ── smoothed area chart ──
+const TL_X={type:'linear',grid:{color:'#10162a'},border:{display:false},ticks:{color:'#39425e',font:{size:9},maxTicksLimit:8,callback:v=>fmtT(v)}};
+function drawArea(idx,benchR,t,rates,venues){
+  const W=Math.min(41,Math.max(5,(Math.round(idx.length/100)|1)));
+  const dsRaw=venues.map(v=>{const ci=S.venues.indexOf(v);
+    const ys=idx.map(i=>{const rv=eff(v,rates[v][i]);return(rv==null||benchR[i]==null)?null:gapBps(rv,benchR[i],S.dir);});
+    const sm=movavg(ys,W);
+    return{v,ci,data:idx.map((i,k)=>({x:t[i],y:sm[k]==null?null:+sm[k].toFixed(2)})),vals:sm.filter(y=>y!=null)};});
+  const med={};dsRaw.forEach(d=>{const s=[...d.vals].sort((a,b)=>a-b);med[d.v]=s.length?s[Math.floor(s.length/2)]:0;});
+  dsRaw.sort((a,b)=>med[a.v]-med[b.v]);  // worst (biggest area) first → best on top
+  const datasets=dsRaw.map(d=>({label:d.v,data:d.data,borderColor:vColor(d.v,d.ci),
+    backgroundColor:hexA(vColor(d.v,d.ci),0.16),borderWidth:1.7,pointRadius:0,pointHoverRadius:4,
+    tension:0.4,fill:'origin',spanGaps:true}));
+  const q=(a,p)=>a.length?a[Math.min(a.length-1,Math.floor(a.length*p))]:0;
+  const pk=[];dsRaw.forEach(d=>{if(med[d.v]>-40)pk.push(...d.vals);});pk.sort((a,b)=>a-b);
+  let yMin=pk.length?q(pk,0.02):-20;yMin=Math.max(-50,Math.min(-6,yMin*1.18));
+  let yMax=pk.length?q(pk,0.985):0;yMax=Math.max(2,Math.min(20,yMax+1));
+  if(mainChart)mainChart.destroy();
+  mainChart=new Chart(document.getElementById('tlMainChart'),{type:'line',data:{datasets},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,parsing:false,normalized:true,
+      interaction:{mode:'nearest',axis:'x',intersect:false},
+      plugins:{legend:{display:false},
+        tooltip:{backgroundColor:'#0c0f1d',borderColor:'#1a1f3a',borderWidth:1,padding:9,itemSort:(a,b)=>b.parsed.y-a.parsed.y,
+          callbacks:{title:it=>it.length?fmtT(it[0].parsed.x):'',label:c=>c.parsed.y==null?null:` ${c.dataset.label}: ${(c.parsed.y>0?'+':'')+c.parsed.y.toFixed(1)} bps`}}},
+      scales:{x:TL_X,y:{min:yMin,max:yMax,grid:{color:ctx=>ctx.tick.value===0?'#2f6f4a':'#10162a',lineWidth:ctx=>ctx.tick.value===0?2:1},
+        border:{display:false},ticks:{color:'#39425e',font:{size:10}}}}}});
+}
+
+// ── 4 win-share tables (both sides × both assets) ──
+async function renderTables(){
+  const feeMap={};ALLOWED.forEach(v=>feeMap[v]=S.includeFees?(+S.fees[v]||0):0);
+  const fp=encodeURIComponent(JSON.stringify(feeMap));
+  let sinceP='';if(S.range!=='all'&&S.ts&&S.ts.t.length)sinceP=`&since_ms=${S.ts.t[S.ts.t.length-1]-(+S.range)*3600*1000}`;
+  let sell,buy;try{[sell,buy]=await Promise.all([apiFetch(`/winshare/SELL?fees=${fp}${sinceP}`),apiFetch(`/winshare/BUY?fees=${fp}${sinceP}`)]);}catch(e){return;}
+  const rl=S.range==='all'?'ALL':S.range+'H';
+  const slots=[['tA','cA',S.pairs[0],'SELL',sell],['tB','cB',S.pairs[1],'SELL',sell],
+              ['tC','cC',S.pairs[0],'BUY',buy],['tD','cD',S.pairs[1],'BUY',buy]];
+  slots.forEach(([tid,cid,pair,dir,res])=>{
+    if(!pair){document.getElementById(tid).innerHTML='';document.getElementById(cid).textContent='';return;}
+    document.getElementById(cid).innerHTML=`<b>${pair.replace('_','/')}</b> · ${dir} · ${rl}`;
+    document.getElementById(tid).innerHTML=buildShareTable(pair,(res.data||{})[pair]||{},dir);});
+}
+function buildShareTable(pair,pdata,dir){
+  const norm={};Object.entries(pdata||{}).forEach(([k,v])=>{norm[Number(k)]=v;});
+  const sizes=Object.keys(norm).map(Number).sort((a,b)=>a-b);
+  if(!sizes.length)return '<div class="nodata">no data</div>';
+  const venues=ALLOWED.filter(v=>S.venues.includes(v));
+  let h='<table class="share"><thead><tr><th></th>';
+  venues.forEach(v=>h+=`<th style="color:${vColor(v)}">${v.slice(0,3)}</th>`);h+='</tr></thead><tbody>';
+  sizes.forEach(s=>{const row=norm[s]||{};let winV=null,wp=-1;venues.forEach(v=>{const p=row[v]?row[v].pct:0;if(p>wp){wp=p;winV=v;}});
+    const sel=(pair===S.pair&&dir===S.dir&&s===S.size)?' class="selrow"':'';
+    h+=`<tr${sel}><td class="sz">${sizeLabel(s,dir)}</td>`;
+    venues.forEach(v=>{const pct=row[v]?row[v].pct:0;const col=vColor(v);const isW=v===winV&&pct>0;
+      if(pct<=0){h+='<td class="num zero">·</td>';return;}
+      const txt=pct>=99.95?'100%':pct.toFixed(1)+'%';
+      h+=`<td class="num${isW?' win':''}"${isW?` style="color:${col}"`:''}><div class="bar" style="width:${Math.max(2,pct)}%;background:${col}"></div><span class="val">${txt}</span></td>`;});
+    h+='</tr>';});
+  return h+'</tbody></table>';
+}
+
+init().catch(err=>{document.getElementById('topbar').innerHTML='<span style="color:#ef4444;font-size:.8rem">Cannot reach API — is the tunnel open?</span>';console.error(err);});
+window.addEventListener('resize',()=>{mainChart?.resize();});
+</script>
+</body>
+</html>

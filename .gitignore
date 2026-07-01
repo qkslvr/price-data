@@ -1,0 +1,19 @@
+# Secrets — never commit these; set them as Vercel env vars / GitHub secrets.
+.env
+**/.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Logs / OS / editor
+*.log
+.DS_Store
+
+# Vercel
+.vercel
+
+# Local Claude Code settings (personal, machine-specific)
+**/.claude/settings.local.json

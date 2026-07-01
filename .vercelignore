@@ -1,0 +1,15 @@
+# Vercel only needs the static dashboard (index.html / tables.html), the
+# api/ function, and vercel.json. Everything below is the data-pull pipeline
+# (runs on GitHub Actions) or local cruft — keep it out of the deployment.
+price-quotes/
+backend/
+frontend/
+.github/
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.log
+*.md
+start.sh
+.DS_Store
+.env

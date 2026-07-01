@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BestQuotes DB Explorer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1d27;
+      border-bottom: 1px solid #2d3148;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    header h1 { font-size: 1.2rem; font-weight: 600; color: #a78bfa; }
+    header .subtitle { font-size: 0.8rem; color: #64748b; }
+
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #22c55e;
+      flex-shrink: 0;
+    }
+    .status-dot.error { background: #ef4444; }
+    .status-dot.loading { background: #f59e0b; animation: pulse 1s infinite; }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    .layout {
+      display: flex;
+      height: calc(100vh - 57px);
+    }
+
+    .sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      background: #1a1d27;
+      border-right: 1px solid #2d3148;
+      overflow-y: auto;
+      padding: 12px 0;
+    }
+
+    .sidebar h2 {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #475569;
+      padding: 0 16px 8px;
+    }
+
+    .table-btn {
+      width: 100%;
+      text-align: left;
+      padding: 8px 16px;
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .table-btn:hover { background: #252840; color: #e2e8f0; }
+    .table-btn.active { background: #2d1f6e; color: #a78bfa; font-weight: 500; }
+
+    .table-btn::before {
+      content: "⊞";
+      font-size: 0.75rem;
+      opacity: 0.5;
+    }
+
+    .main {
+      flex: 1;
+      overflow: auto;
+      padding: 24px;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #475569;
+      gap: 8px;
+    }
+
+    .empty-state .icon { font-size: 3rem; }
+
+    .table-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .table-header h2 { font-size: 1rem; font-weight: 600; }
+    .table-header .meta { font-size: 0.8rem; color: #64748b; }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    input[type="text"] {
+      background: #1a1d27;
+      border: 1px solid #2d3148;
+      color: #e2e8f0;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      width: 200px;
+      outline: none;
+    }
+
+    input[type="text"]:focus { border-color: #7c3aed; }
+
+    .btn {
+      background: #2d1f6e;
+      color: #a78bfa;
+      border: 1px solid #4c1d95;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      cursor: pointer;
+    }
+
+    .btn:hover { background: #3b2a80; }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 0.82rem;
+    }
+
+    thead { background: #1a1d27; position: sticky; top: 0; z-index: 1; }
+
+    th {
+      padding: 10px 14px;
+      text-align: left;
+      font-weight: 500;
+      color: #7c3aed;
+      border-bottom: 1px solid #2d3148;
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    th:hover { color: #a78bfa; }
+
+    th .sort-icon { opacity: 0.4; margin-left: 4px; font-size: 0.7rem; }
+    th.asc .sort-icon::after { content: "▲"; }
+    th.desc .sort-icon::after { content: "▼"; }
+    th:not(.asc):not(.desc) .sort-icon::after { content: "⇅"; }
+
+    td {
+      padding: 9px 14px;
+      border-bottom: 1px solid #1e2235;
+      color: #cbd5e1;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    td.null { color: #475569; font-style: italic; }
+
+    tr:hover td { background: #1e2235; }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+      font-size: 0.82rem;
+      color: #64748b;
+    }
+
+    .error-banner {
+      background: #3b0a0a;
+      border: 1px solid #7f1d1d;
+      color: #fca5a5;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 0.85rem;
+    }
+
+    .spinner {
+      border: 2px solid #2d3148;
+      border-top-color: #7c3aed;
+      border-radius: 50%;
+      width: 20px; height: 20px;
+      animation: spin 0.7s linear infinite;
+      margin: 40px auto;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="status-dot" id="statusDot"></div>
+  <div>
+    <h1>BestQuotes DB Explorer</h1>
+    <div class="subtitle" id="statusText">Connecting…</div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <h2>Tables</h2>
+    <div id="tableList"><div class="spinner"></div></div>
+  </nav>
+
+  <main class="main" id="main">
+    <div class="empty-state">
+      <div class="icon">⊞</div>
+      <div>Select a table from the sidebar</div>
+    </div>
+  </main>
+</div>
+
+<script>
+const API = (window.API_BASE || '') + '/api';
+let currentTable = null;
+let currentOffset = 0;
+let currentTotal = 0;
+let currentColumns = [];
+let currentRows = [];
+let sortCol = null;
+let sortDir = 'asc';
+let filterText = '';
+const PAGE = 200;
+
+const dot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+
+async function init() {
+  try {
+    const tables = await apiFetch('/tables');
+    dot.className = 'status-dot';
+    statusText.textContent = `Connected · ${tables.length} tables`;
+    renderSidebar(tables);
+  } catch (e) {
+    dot.className = 'status-dot error';
+    statusText.textContent = 'Cannot reach API — is the tunnel open?';
+    document.getElementById('tableList').innerHTML =
+      '<div style="padding:12px;color:#ef4444;font-size:0.8rem">Open the SSH tunnel first, then refresh.</div>';
+  }
+}
+
+async function apiFetch(path) {
+  const res = await fetch(API + path);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+function renderSidebar(tables) {
+  const el = document.getElementById('tableList');
+  el.innerHTML = tables.map(t =>
+    `<button class="table-btn" onclick="loadTable('${t}')">${t}</button>`
+  ).join('');
+}
+
+async function loadTable(name, offset = 0) {
+  currentTable = name;
+  currentOffset = offset;
+  sortCol = null; sortDir = 'asc'; filterText = '';
+
+  document.querySelectorAll('.table-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent === name);
+  });
+
+  document.getElementById('main').innerHTML = '<div class="spinner"></div>';
+
+  try {
+    const data = await apiFetch(`/tables/${name}?limit=${PAGE}&offset=${offset}`);
+    currentColumns = data.columns;
+    currentRows = data.rows;
+    currentTotal = data.total;
+    renderTable();
+  } catch (e) {
+    document.getElementById('main').innerHTML =
+      `<div class="error-banner">Failed to load table: ${e.message}</div>`;
+  }
+}
+
+function renderTable() {
+  let rows = [...currentRows];
+
+  if (filterText) {
+    const q = filterText.toLowerCase();
+    rows = rows.filter(r =>
+      Object.values(r).some(v => v !== null && String(v).toLowerCase().includes(q))
+    );
+  }
+
+  if (sortCol) {
+    rows.sort((a, b) => {
+      const va = a[sortCol] ?? '';
+      const vb = b[sortCol] ?? '';
+      if (va < vb) return sortDir === 'asc' ? -1 : 1;
+      if (va > vb) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+
+  const hasPrev = currentOffset > 0;
+  const hasNext = currentOffset + PAGE < currentTotal;
+
+  const thead = currentColumns.map(c => {
+    const cls = sortCol === c ? sortDir : '';
+    return `<th class="${cls}" onclick="toggleSort('${c}')">${c}<span class="sort-icon"></span></th>`;
+  }).join('');
+
+  const tbody = rows.map(r =>
+    '<tr>' + currentColumns.map(c => {
+      const v = r[c];
+      if (v === null || v === undefined)
+        return '<td class="null">null</td>';
+      return `<td title="${String(v).replace(/"/g,'&quot;')}">${escHtml(String(v))}</td>`;
+    }).join('') + '</tr>'
+  ).join('');
+
+  document.getElementById('main').innerHTML = `
+    <div class="table-header">
+      <div>
+        <h2>${currentTable}</h2>
+        <div class="meta">${currentTotal.toLocaleString()} rows total · showing ${currentOffset+1}–${Math.min(currentOffset+PAGE, currentTotal)}</div>
+      </div>
+      <div class="controls">
+        <input type="text" placeholder="Filter rows…" value="${escHtml(filterText)}"
+          oninput="filterText=this.value;renderTable()" />
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>${thead}</tr></thead>
+        <tbody>${tbody}</tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <button class="btn" onclick="loadTable(currentTable, currentOffset-PAGE)" ${hasPrev?'':'disabled'}>← Prev</button>
+      <span>Page ${Math.floor(currentOffset/PAGE)+1} / ${Math.ceil(currentTotal/PAGE)}</span>
+      <button class="btn" onclick="loadTable(currentTable, currentOffset+PAGE)" ${hasNext?'':'disabled'}>Next →</button>
+    </div>
+  `;
+}
+
+function toggleSort(col) {
+  if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  else { sortCol = col; sortDir = 'asc'; }
+  renderTable();
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+init();
+</script>
+</body>
+</html>
