@@ -116,7 +116,7 @@ select:focus{border-color:#4a52a8}
     <div class="field"><span class="tag">BENCHMARK</span><select id="benchSel"></select></div>
     <div class="field"><span class="tag">SIZE</span><div class="seg" id="sizeSeg"></div></div>
     <div class="seg" id="rangeSeg"><button data-range="all" class="on">ALL</button><button data-range="24">24H</button><button data-range="2">2H</button></div>
-    <div class="field"><label class="switch"><input type="checkbox" id="feeToggle"><span class="track"></span></label><span class="tag">FEES</span><button class="mini-btn" id="feeEdit">EDIT</button></div>
+    <div class="field"><label class="switch"><input type="checkbox" id="feeToggle" checked><span class="track"></span></label><span class="tag">FEES</span><button class="mini-btn" id="feeEdit">EDIT</button></div>
     <div class="chips" id="chips"></div>
   </div>
 
@@ -144,7 +144,7 @@ const ALLOWED=['kalqix','kyberswap','paraswap'];
 const DEFAULT_FEES={binance:10,hyperliquid:7,kalqix:7,kyberswap:0,uniswap:0,pancakeswap:0,paraswap:0};
 
 const S={pair:null,data:null,dir:'SELL',bench:'BEST',muted:new Set(),size:null,venues:[],
-  range:'all',ts:null,tsCache:{},pairs:[],includeFees:false,fees:{...DEFAULT_FEES}};
+  range:'all',ts:null,tsCache:{},pairs:[],includeFees:true,fees:{...DEFAULT_FEES}};
 let mainChart=null;
 
 Chart.defaults.color='#475569';
@@ -162,7 +162,7 @@ function readURL(){const q=new URLSearchParams(location.search);
   return {pair:q.get('pair'),dir:q.get('dir'),bench:q.get('bench'),size:q.get('size'),range:q.get('range'),fees:q.get('fees')};}
 function writeURL(){const q=new URLSearchParams();
   q.set('pair',S.pair);q.set('dir',S.dir);q.set('bench',S.bench);if(S.size!=null)q.set('size',S.size);
-  q.set('range',S.range);if(S.includeFees)q.set('fees','1');
+  q.set('range',S.range);q.set('fees',S.includeFees?'1':'0');
   history.replaceState(null,'','?'+q.toString());}
 
 async function init(){
@@ -177,7 +177,7 @@ async function init(){
   const u=readURL();
   if(u.dir==='BUY'||u.dir==='SELL')S.dir=u.dir;
   if(u.range)S.range=u.range;
-  if(u.fees==='1'){S.includeFees=true;document.getElementById('feeToggle').checked=true;}
+  if(u.fees!=null){S.includeFees=u.fees==='1';document.getElementById('feeToggle').checked=S.includeFees;}
   syncSegs();
   const start=(u.pair&&pairs.includes(u.pair))?u.pair:pairs[0];
   if(pairs.length)loadPair(start,u);
