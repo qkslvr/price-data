@@ -140,8 +140,10 @@ select:focus{border-color:#4a52a8}
 const API=(window.API_BASE||'')+'/api';
 const VENUE_COLORS={bebop:'#f59e0b',binance:'#eab308',hyperliquid:'#06b6d4',kalqix:'#84cc16',kyberswap:'#6366f1',pancakeswap:'#a855f7',uniswap:'#f97316',uniswap_v3:'#f97316',paraswap:'#2dd4bf'};
 const FALLBACK=['#3b82f6','#ef4444','#10b981','#ec4899','#8b5cf6'];
-const ALLOWED=['kalqix','kyberswap','paraswap'];
-const DEFAULT_FEES={binance:10,hyperliquid:7,kalqix:7,kyberswap:0,uniswap:0,pancakeswap:0,paraswap:0};
+// "Everything" mode: /all or ?venues=all shows every venue; default = the 3.
+const SHOW_ALL=new URLSearchParams(location.search).get('venues')==='all'||location.pathname.replace(/\/+$/,'').endsWith('/all');
+const ALLOWED=SHOW_ALL?['bebop','binance','hyperliquid','kalqix','kyberswap','pancakeswap','paraswap','uniswap']:['kalqix','kyberswap','paraswap'];
+const DEFAULT_FEES={bebop:0,binance:10,hyperliquid:7,kalqix:7,kyberswap:0,uniswap:0,pancakeswap:0,paraswap:0};
 
 const S={pair:null,data:null,dir:'SELL',bench:'BEST',muted:new Set(),size:null,venues:[],
   range:'24',ts:null,tsCache:{},pairs:[],includeFees:true,fees:{...DEFAULT_FEES}};
@@ -162,7 +164,7 @@ function readURL(){const q=new URLSearchParams(location.search);
   return {pair:q.get('pair'),dir:q.get('dir'),bench:q.get('bench'),size:q.get('size'),range:q.get('range'),fees:q.get('fees')};}
 function writeURL(){const q=new URLSearchParams();
   q.set('pair',S.pair);q.set('dir',S.dir);q.set('bench',S.bench);if(S.size!=null)q.set('size',S.size);
-  q.set('range',S.range);q.set('fees',S.includeFees?'1':'0');
+  q.set('range',S.range);q.set('fees',S.includeFees?'1':'0');if(SHOW_ALL)q.set('venues','all');
   history.replaceState(null,'','?'+q.toString());}
 
 async function init(){
