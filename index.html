@@ -115,7 +115,7 @@ select:focus{border-color:#4a52a8}
     <div class="seg" id="dirSeg"><button data-dir="SELL" class="on">SELL</button><button data-dir="BUY">BUY</button></div>
     <div class="field"><span class="tag">BENCHMARK</span><select id="benchSel"></select></div>
     <div class="field"><span class="tag">SIZE</span><div class="seg" id="sizeSeg"></div></div>
-    <div class="seg" id="rangeSeg"><button data-range="all" class="on">ALL</button><button data-range="24">24H</button><button data-range="2">2H</button></div>
+    <div class="seg" id="rangeSeg"><button data-range="all">ALL</button><button data-range="24" class="on">24H</button><button data-range="2">2H</button></div>
     <div class="field"><label class="switch"><input type="checkbox" id="feeToggle" checked><span class="track"></span></label><span class="tag">FEES</span><button class="mini-btn" id="feeEdit">EDIT</button></div>
     <div class="chips" id="chips"></div>
   </div>
@@ -144,7 +144,7 @@ const ALLOWED=['kalqix','kyberswap','paraswap'];
 const DEFAULT_FEES={binance:10,hyperliquid:7,kalqix:7,kyberswap:0,uniswap:0,pancakeswap:0,paraswap:0};
 
 const S={pair:null,data:null,dir:'SELL',bench:'BEST',muted:new Set(),size:null,venues:[],
-  range:'all',ts:null,tsCache:{},pairs:[],includeFees:true,fees:{...DEFAULT_FEES}};
+  range:'24',ts:null,tsCache:{},pairs:[],includeFees:true,fees:{...DEFAULT_FEES}};
 let mainChart=null;
 
 Chart.defaults.color='#475569';
@@ -234,7 +234,7 @@ function buildSizeSeg(){const el=document.getElementById('sizeSeg');el.innerHTML
 
 function activeVenues(){return S.venues.filter(v=>!S.muted.has(v));}
 function sizesFor(dir){const dd=S.data[dir]||{};const set=new Set();Object.values(dd).forEach(a=>a.forEach(p=>set.add(p.size)));return[...set].sort((a,b)=>a-b);}
-function resetSize(){const s=sizesFor(S.dir);S.size=s.length?s[s.length-1]:null;}
+function resetSize(){const s=sizesFor(S.dir);S.size=s.includes(0.1)?0.1:(s.length?s[s.length-1]:null);}
 function gapBps(rate,bench,dir){if(rate==null||bench==null)return null;return dir==='SELL'?(rate-bench)/bench*1e4:(bench-rate)/bench*1e4;}
 const sizeLabel=(s,dir)=>dir==='SELL'?String(s):'$'+s;
 function fmtT(ms){const d=new Date(ms);const mon=d.toLocaleString('en',{month:'short',timeZone:'UTC'});
