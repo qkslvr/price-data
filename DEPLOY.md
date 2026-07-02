@@ -1,16 +1,16 @@
 # Deploying the liquidity-edge dashboard (cloud)
 
-Target architecture — nothing depends on the old private box:
+Target architecture — the puller runs as a plain cron on your own server:
 
 ```
-GitHub Actions (cron, every 5 min)      Vercel
+Your server (cron, every 5 min)         Vercel
   price-quotes/  ──writes──►  Neon  ◄──reads──  api/index.py (FastAPI)
                             Postgres                 +  index.html (dashboard)
 ```
 
 - **DB:** Neon (managed serverless Postgres, free tier).
-- **Puller:** `price-quotes/` runs on GitHub Actions every 5 min, writes to Neon,
-  and prunes anything older than **30 days** (`RETENTION_DAYS`).
+- **Puller:** `price-quotes/` runs from a cron on your server every 5 min, writes
+  to Neon, and prunes anything older than **30 days** (`RETENTION_DAYS`).
 - **API + UI:** one Vercel project. `index.html` is served by the CDN; every
   `/api/*` request is rewritten to the `api/index.py` serverless function.
 
@@ -18,67 +18,87 @@ GitHub Actions (cron, every 5 min)      Vercel
 
 ## 1. Neon (database)
 
-1. Create a project at <https://neon.tech> and a database named `bestquotes`.
+1. Create a project at <https://neon.tech>.
 2. Copy **two** connection strings from the Neon dashboard:
    - **Pooled** (host contains `-pooler`) → for Vercel (the API).
    - **Direct** (no `-pooler`) → for the puller / running the schema.
    Both look like
-   `postgresql://USER:PASSWORD@ep-xxxx[-pooler].REGION.aws.neon.tech/bestquotes?sslmode=require`.
+   `postgresql://USER:PASSWORD@ep-xxxx[-pooler].REGION.aws.neon.tech/DB?sslmode=require`.
 3. Apply the schema (uses the direct string):
    ```bash
-   psql "postgresql://…neon.tech/bestquotes?sslmode=require" -f price-quotes/db/schema.sql
+   psql "postgresql://…neon.tech/DB?sslmode=require" -f price-quotes/db/schema.sql
    ```
 
-## 2. GitHub (the 5-min puller)
+## 2. Server cron (the 5-min puller)
 
-1. Create a repo and push this folder to it.
-   > **Make the repo PUBLIC.** GitHub Actions minutes are unlimited on public
-   > repos. On a private repo the 5-min cron (~8,640 runs/month, billed ≥1 min
-   > each) blows past the 2,000 free minutes and costs ~$50/month. No secrets
-   > are committed — they live in Actions secrets below and `.env` is gitignored.
-   > (If you must keep it private, raise the cron interval or expect the cost.)
-2. In the repo: **Settings → Secrets and variables → Actions → New repository
-   secret**, add:
-   | Secret | Value |
-   |---|---|
-   | `DATABASE_URL` | Neon **direct** connection string |
-   | `KALQIX_API_KEY` | from `price-quotes/.env` |
-   | `KALQIX_API_SECRET` | from `price-quotes/.env` |
-   | `BASE_RPC_URL` | from `price-quotes/.env` |
-   | `UNISWAP_API_KEY` | from `price-quotes/.env` |
-3. **Settings → Actions → General:** ensure Actions are enabled.
-4. Open the **Actions** tab → **pull-quotes** → **Run workflow** to fire the
-   first run manually. After that it runs every 5 min on its own.
-   > GitHub's scheduler is best-effort: runs may drift a few minutes or, under
-   > load, skip. Fine for this dashboard; the schema tolerates gaps.
+Run this on whichever always-on box you control (e.g. the old data-pull box).
+It needs outbound internet (for the venue APIs + Neon) — no SSH tunnel.
+
+1. Get the code and install deps:
+   ```bash
+   git clone https://github.com/qkslvr/price-data.git
+   cd price-data/price-quotes
+   python3 -m venv .venv
+   .venv/bin/pip install -r requirements.txt
+   ```
+   (If the box already has this repo, `git pull` to get the Neon-ready DB layer
+   and the `--quiet` flag.)
+2. Create `price-quotes/.env` (gitignored) — this is what the puller reads:
+   ```env
+   DATABASE_URL=postgresql://USER:PASSWORD@ep-xxxx.REGION.aws.neon.tech/DB?sslmode=require  # Neon DIRECT
+   KALQIX_API_KEY=...
+   KALQIX_API_SECRET=...
+   BASE_RPC_URL=https://base.gateway.tenderly.co
+   UNISWAP_API_KEY=...
+   RETENTION_DAYS=30
+   ```
+3. Test one run:
+   ```bash
+   ./scripts/run_once.sh --quiet
+   # -> 2026-07-02 09:11:34Z  114 quotes  run_id=7231
+   ```
+4. Install the cron (`crontab -e`), pointing at the absolute path on your box:
+   ```cron
+   */5 * * * * /home/USER/price-data/price-quotes/scripts/run_once.sh --quiet >> /home/USER/price-data/price-quotes/cron.log 2>&1
+   ```
+   `run_once.sh` resolves its own path, activates `.venv`, and runs
+   `python -m src.main`. `--quiet` logs one line per run (no big tables), so
+   `cron.log` stays tiny. Rotate/truncate it whenever you like.
 
 ## 3. Vercel (API + dashboard)
 
-1. Import the same GitHub repo at <https://vercel.com/new>. Framework preset:
+1. Import the GitHub repo at <https://vercel.com/new>. Framework preset:
    **Other**. Leave build/output settings empty — `vercel.json` handles routing.
+   > Vercel may clone your code into a *new* repo at import (e.g. `<org>/price-data`
+   > with an "Initial commit") and deploy from that copy — so your own pushes never
+   > deploy. If so: **Settings → Git → disconnect that copy, connect
+   > `qkslvr/price-data`** (grant the Vercel GitHub App access to your account),
+   > then push a commit to trigger a deploy. (Redeploy fails — it targets the old
+   > copy's commit.)
 2. **Settings → Environment Variables:** add `DATABASE_URL` = Neon **pooled**
-   connection string (the `-pooler` one). Apply to Production (and Preview).
-3. Deploy. Your dashboard is at `https://<project>.vercel.app/`, and the API at
-   `https://<project>.vercel.app/api/...` (same origin — no CORS needed).
+   (`-pooler`) connection string. Apply to Production (and Preview).
+3. Deploy. Dashboard at `https://<project>.vercel.app/`; API at `/api/...`
+   (same origin — no CORS needed).
 
 ## 4. (Optional) migrate existing history
 
-To carry over the data currently on the old box, run once with the SSH tunnel up
-(`./start.sh` from the old setup opened `localhost:5433`):
+To carry over data from an old Postgres into Neon (data-only):
 
 ```bash
-pg_dump "postgresql://bestquotes:PASS@localhost:5433/bestquotes" \
+pg_dump "postgresql://USER:PASS@OLD_HOST:PORT/OLD_DB" \
         --data-only --table=quote_runs --table=quotes \
-  | psql "postgresql://…neon.tech/bestquotes?sslmode=require"
+  | psql "postgresql://…neon.tech/DB?sslmode=require"
 ```
 
-The 30-day prune will then trim it to the retention window on the next run.
+After loading with preserved IDs, bump the sequence so the cron continues without
+collisions: `SELECT setval('quote_runs_id_seq', (SELECT max(id) FROM quote_runs));`
+The 30-day prune trims it to the retention window on the next run.
 
 ---
 
 ## Local development
 
-No SSH tunnel anymore — you connect straight to Neon.
+No SSH tunnel — you connect straight to Neon.
 
 ```bash
 cp .env.example .env          # put a Neon connection string in DATABASE_URL
@@ -90,6 +110,6 @@ cp .env.example .env          # put a Neon connection string in DATABASE_URL
 
 ## Knobs
 
-- **Cadence:** edit `.github/workflows/pull-quotes.yml` (`cron: "*/5 * * * *"`).
-- **Retention:** edit `RETENTION_DAYS` in the same workflow (default `30`).
+- **Cadence:** the `*/5 * * * *` in your crontab (step 2.4).
+- **Retention:** `RETENTION_DAYS` in `price-quotes/.env` (default `30`).
   Storage ≈ RETENTION_DAYS × ~25k rows/day at 5-min cadence.

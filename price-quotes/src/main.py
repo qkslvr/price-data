@@ -8,6 +8,7 @@ Usage:
 """
 import argparse
 import asyncio
+from datetime import datetime, timezone
 from typing import List
 
 from .aggregator import fetch_all
@@ -75,31 +76,42 @@ def print_best(rows: List[Quote]):
         )
 
 
-async def run_once(pairs, use_db: bool):
-    print(f"Fetching quotes for: {', '.join(pairs)} ...")
+async def run_once(pairs, use_db: bool, quiet: bool = False):
+    if not quiet:
+        print(f"Fetching quotes for: {', '.join(pairs)} ...")
     rows = await fetch_all(pairs)
-    print(f"Collected {len(rows)} quotes.\n")
-    print_table(rows)
-    print_best(rows)
+    if not quiet:
+        print(f"Collected {len(rows)} quotes.\n")
+        print_table(rows)
+        print_best(rows)
 
+    run_id = removed = None
     if use_db:
         run_id = await store(rows)
         if run_id is not None:
-            print(f"\nStored as run_id={run_id}")
             removed = await prune(RETENTION_DAYS)
-            if removed:
-                print(f"Pruned {removed} run(s) older than {RETENTION_DAYS}d")
+            if not quiet:
+                print(f"\nStored as run_id={run_id}")
+                if removed:
+                    print(f"Pruned {removed} run(s) older than {RETENTION_DAYS}d")
+
+    if quiet:
+        # One compact line per run — keeps cron logs tiny.
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
+        pruned = f", pruned {removed}" if removed else ""
+        print(f"{ts}  {len(rows)} quotes  run_id={run_id}{pruned}", flush=True)
 
 
 async def main_async(args):
     pairs = [args.pair] if args.pair else list(PAIRS.keys())
     if args.loop:
         while True:
-            await run_once(pairs, not args.no_db)
-            print(f"\n--- sleeping {args.loop}s ---\n")
+            await run_once(pairs, not args.no_db, args.quiet)
+            if not args.quiet:
+                print(f"\n--- sleeping {args.loop}s ---\n")
             await asyncio.sleep(args.loop)
     else:
-        await run_once(pairs, not args.no_db)
+        await run_once(pairs, not args.no_db, args.quiet)
 
 
 def main():
@@ -108,6 +120,8 @@ def main():
     parser.add_argument("--no-db", action="store_true", help="do not write to Postgres")
     parser.add_argument("--loop", type=int, metavar="SECONDS",
                         help="repeat every N seconds")
+    parser.add_argument("--quiet", action="store_true",
+                        help="cron mode: one summary line per run, no tables")
     args = parser.parse_args()
 
     try:
